@@ -2,10 +2,14 @@
 
 # Usage: ./create_db_config.sh action [TARGET_USER [TARGET_PASS TARGET_PGHOST TARGET_PORT TARGET_PGDB]]
 
+# Redirect all output to a log file
+LOG_FILE="/var/log/create_db_config.log"
+exec &> >(tee -a "$LOG_FILE")
+
 ACTION=$1
 
 # Parameters are optional for the 'switch' action
-if [ "$ACTION" != "switch" ]; then
+if [ "$ACTION" != "switch" ] && [ "$ACTION" != "write_and_switch" ]; then
   TARGET_USER=$2
   TARGET_PASS=$3
   TARGET_PGHOST=$4
@@ -31,7 +35,8 @@ backup_original() {
   if [ -f "$BACKUP_PATH" ]; then
     echo "Backup file already exists, indicating a subsequent run. We are not proceeding with backup."
   else
-    cp "$CONFIG_PATH" "$BACKUP_PATH"
+    cat "$CONFIG_PATH" > "$BACKUP_PATH"
+    echo "Backup of original configuration created."
   fi
 }
 
@@ -49,29 +54,13 @@ ${STAGE}:
   port: ${TARGET_PORT:-5432}
   pool: ${pool_value}
 EOF
-}
-
-# Revert to original configuration
-revert_config() {
-  if [ -f "$BACKUP_PATH" ]; then
-    cp "$BACKUP_PATH" "$CONFIG_PATH"
-    restart_server
-    echo "Configuration reverted and server restart signal sent."
-  else
-    echo "Backup file not found. Cannot revert."
-    exit 1
-  fi
+  echo "New configuration written."
 }
 
 # Switch to migration configuration
 switch_config() {
-  if [ -z "$TARGET_USER" ]; then
-    echo "Application name (TARGET_USER) is required for the switch action."
-    exit 1
-  fi
-
   if [ -f "$MIGRATION_PATH" ]; then
-    cp "$MIGRATION_PATH" "$CONFIG_PATH"
+    cat "$MIGRATION_PATH" > "$CONFIG_PATH"
     restart_server
     echo "Configuration switched and server restart signal sent."
   else
@@ -83,9 +72,11 @@ switch_config() {
 # Restart the server
 restart_server() {
   touch "$RESTART_PATH"
+  echo "Server restart signal sent."
 }
 
 # Main logic
+echo "Script started with action: $ACTION"
 case "$ACTION" in
   write)
     if [ $# -lt 6 ]; then
@@ -107,9 +98,20 @@ case "$ACTION" in
     TARGET_USER=$2
     switch_config
     ;;
+  write_and_switch)
+    if [ $# -lt 6 ]; then
+      echo "Insufficient arguments for write_and_switch action."
+      echo "Usage: $0 write_and_switch TARGET_USER TARGET_PASS TARGET_PGHOST TARGET_PORT TARGET_PGDB"
+      exit 1
+    fi
+    backup_original
+    write_config
+    switch_config
+    ;;
   *)
     echo "Invalid action: $ACTION"
-    echo "Usage: $0 [write|revert|switch] [TARGET_USER [TARGET_PASS TARGET_PGHOST TARGET_PORT TARGET_PGDB]]"
+    echo "Usage: $0 [write|revert|switch|write_and_switch] [TARGET_USER [TARGET_PASS TARGET_PGHOST TARGET_PORT TARGET_PGDB]]"
     exit 1
     ;;
 esac
+echo "Script ended."

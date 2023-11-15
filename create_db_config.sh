@@ -25,6 +25,16 @@ RESTART_PATH="/var/apps/${TARGET_USER}/current/tmp/restart.txt"
 # Use the STAGE environment variable
 STAGE=${STAGE:-"default_stage"}
 
+# Function to verify PostgreSQL server
+verify_server() {
+  PGPASSWORD=$TARGET_PASS psql -U "$TARGET_USER" -h "$TARGET_PGHOST" -p "${TARGET_PORT:-5432}" -d "$TARGET_PGDB" -c "SELECT 1;" &>/dev/null
+  if [ $? -ne 0 ]; then
+    echo "Failed to connect to PostgreSQL server. Please check your credentials."
+    exit 1
+  fi
+  echo "Successfully connected to PostgreSQL server."
+}
+
 # Function to extract the pool value
 extract_pool_value() {
   grep "pool:" "$CONFIG_PATH" | awk '{print $2}'
@@ -59,6 +69,7 @@ EOF
 
 # Switch to migration configuration
 switch_config() {
+  verify_server
   if [ -f "$MIGRATION_PATH" ]; then
     cat "$MIGRATION_PATH" > "$CONFIG_PATH"
     restart_server

@@ -24,11 +24,7 @@ CONFIG_PATH="/var/apps/${TARGET_USER}/current/config/database.yml"
 MIGRATION_PATH="${CONFIG_PATH}.migration"
 BACKUP_PATH="/var/apps/${TARGET_USER}/database.yml.chef.original"
 RESTART_PATH="/var/apps/${TARGET_USER}/current/tmp/restart.txt"
-if [ "$TARGET_USER" == "ingest_parser" ]; then
-  APACHE_CONFIG_PATH="/etc/apache2/sites-enabled/ingest.conf"
-else
-  APACHE_CONFIG_PATH="/etc/apache2/sites-enabled/${TARGET_USER}.conf"
-fi
+APACHE_CONFIG_PATH="/etc/apache2/sites-enabled/$(echo "$TARGET_USER" | sed 's/_.*//').conf"
 
 # Use the STAGE environment variable
 STAGE=$(grep "RackEnv" "$APACHE_CONFIG_PATH" | awk '{print $2}' | head -1)

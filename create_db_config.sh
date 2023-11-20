@@ -24,9 +24,14 @@ CONFIG_PATH="/var/apps/${TARGET_USER}/current/config/database.yml"
 MIGRATION_PATH="${CONFIG_PATH}.migration"
 BACKUP_PATH="/var/apps/${TARGET_USER}/database.yml.chef.original"
 RESTART_PATH="/var/apps/${TARGET_USER}/current/tmp/restart.txt"
+if [ "$TARGET_USER" == "ingest_parser" ]; then
+  APACHE_CONFIG_PATH="/etc/apache2/sites-enabled/ingest.conf"
+else
+  APACHE_CONFIG_PATH="/etc/apache2/sites-enabled/${TARGET_USER}.conf"
+fi
 
 # Use the STAGE environment variable
-STAGE=${STAGE:-"default_stage"}
+STAGE=$(grep "RackEnv" "$APACHE_CONFIG_PATH" | awk '{print $2}' | head -1)
 
 # Function to extract the pool value
 extract_pool_value() {
@@ -39,7 +44,19 @@ backup_original() {
     echo "Backup file already exists, indicating a subsequent run. We are not proceeding with backup."
   else
     cat "$CONFIG_PATH" >"$BACKUP_PATH"
+    chown deploy:deploy "$BACKUP_PATH"
     echo "Backup of original configuration created."
+  fi
+}
+
+# Backup the original file if it doesn't exist
+revert_config() {
+  if [ -f "$BACKUP_PATH" ]; then
+    echo "Backup file already exists. I will revert to it"
+    cat "$BACKUP_PATH" >"$CONFIG_PATH"
+  else
+    echo "Revert failed due to missing backup file!."
+    exit 1
   fi
 }
 
@@ -58,6 +75,7 @@ ${STAGE}:
   pool: ${pool_value}
 EOF
   echo "New configuration written."
+  chown deploy:deploy "$MIGRATION_PATH"
 }
 
 # Switch to migration configuration

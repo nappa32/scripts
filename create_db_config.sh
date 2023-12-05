@@ -2,23 +2,53 @@
 
 # Usage: ./create_db_config.sh action [TARGET_USER [TARGET_PASS TARGET_PGHOST TARGET_PORT TARGET_PGDB]]
 
-# Redirect all output to a log file
-LOG_FILE="/var/log/create_db_config.log"
+export LOG_FILE="/var/log/create_db_config.log"
 touch $LOG_FILE
 chown deploy:deploy $LOG_FILE
 
 exec &> >(tee -a "$LOG_FILE")
 
-ACTION=$1
+# Function to print settings
+
+print_settings() {
+  local obfuscated_pass
+  if [ -n "$TARGET_PASS" ]; then
+    local pass_length=${#TARGET_PASS}
+    if [ "$pass_length" -le 2 ]; then
+      obfuscated_pass="$TARGET_PASS"
+    else
+      obfuscated_pass="${TARGET_PASS:0:1}$(printf '_%.0s' $(seq 2 $(($pass_length - 1))))${TARGET_PASS: -1}"
+    fi
+  else
+    obfuscated_pass='Not Set'
+  fi
+
+  echo "Running script with the following settings:"
+  echo "ACTION: ${ACTION:-'Not Set'}"
+  echo "TARGET_USER: ${TARGET_USER:-'Not Set'}"
+  echo "TARGET_PASS: $obfuscated_pass"
+  echo "TARGET_PGHOST: ${TARGET_PGHOST:-'Not Set'}"
+  echo "TARGET_PORT: ${TARGET_PORT:-'Not Set'}"
+  echo "TARGET_PGDB: ${TARGET_PGDB:-'Not Set'}"
+  echo "LOG_FILE: ${LOG_FILE:-'Not Set'}"
+  echo "CONFIG_PATH: ${CONFIG_PATH:-'Not Set'}"
+  echo "MIGRATION_PATH: ${MIGRATION_PATH:-'Not Set'}"
+  echo "BACKUP_PATH: ${BACKUP_PATH:-'Not Set'}"
+  echo "RESTART_PATH: ${RESTART_PATH:-'Not Set'}"
+  echo "APACHE_CONFIG_PATH: ${APACHE_CONFIG_PATH:-'Not Set'}"
+  echo "STAGE: ${STAGE:-'Not Set'}"
+}
+export ACTION=$1
 
 # Parameters are optional for the 'switch' action
 if [ "$ACTION" != "switch" ] && [ "$ACTION" != "write_and_switch" ]; then
-  TARGET_USER=$2
-  TARGET_PASS=$3
-  TARGET_PGHOST=$4
-  TARGET_PORT=$5
-  TARGET_PGDB=$6
+  export TARGET_PASS=$3
+  export TARGET_PGHOST=$4
+  export TARGET_PORT=$5
+  export TARGET_PGDB=$6
 fi
+
+export TARGET_USER=$2
 
 CONFIG_PATH="/var/apps/${TARGET_USER}/current/config/database.yml"
 MIGRATION_PATH="${CONFIG_PATH}.migration"
@@ -28,6 +58,9 @@ APACHE_CONFIG_PATH="/etc/apache2/sites-enabled/$(echo "$TARGET_USER" | sed 's/_.
 
 # Use the STAGE environment variable
 STAGE=$(grep "RackEnv" "$APACHE_CONFIG_PATH" | awk '{print $2}' | head -1)
+
+# Call the function to print settings
+print_settings
 
 # Function to extract the pool value
 extract_pool_value() {

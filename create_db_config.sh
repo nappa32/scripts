@@ -23,7 +23,7 @@ print_settings() {
     obfuscated_pass='Not Set'
   fi
 
-  echo "Running script with the following settings:"
+  echo "Running script with the following settings: $(date +%R)"
   echo "ACTION: ${ACTION:-'Not Set'}"
   echo "TARGET_USER: ${TARGET_USER:-'Not Set'}"
   echo "TARGET_PASS: $obfuscated_pass"
